@@ -6,10 +6,12 @@ messageStore = require './messageStore'
 
 init = ->
 	app = express()
-
+	
 	# Auth middleware
 	app.use(express.basicAuth('testuser', 'testpass'));
 
+	app.use(express.bodyParser())
+	
 	# Logger middleware
 	app.use express.logger()
 

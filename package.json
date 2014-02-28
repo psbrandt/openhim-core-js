@@ -6,7 +6,8 @@
   "dependencies": {
     "express": "3.4.8",
     "passport": "0.2.0",
-    "passport-http": "0.2.2"
+    "passport-http": "0.2.2",
+    "mongodb":"*"
   },
   "devDependencies": {
     "coffee-script": "1.7.1",
