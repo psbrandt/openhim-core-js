@@ -1,54 +1,60 @@
+MongoClient = require 'mongodb'.MongoClient
 
 
-http = require 'http'
-mongo = require 'mongodb'
-config = require '../config'
+exports.Transaction = (status,applicationId,request,response,routes,orchestrations,properties) ->
+	this.status = status
+	this.applicationId = applicationId
+	this.request = request
+	this.response = response
+	this.routes = routes
+	this.orchestrations = orchestrations
+	this.properties = properties
+	return this
 
-server = new mongo.Server LOCATION,PORT,native_parse:true
-db = new mongo.Db DATABASE_NAME, server  
-db.open (error, connection) ->
-  console.log "Connected to #{DATABASE_NAME}"
+saveTransaction = (transaction) ->
+	MongoClient.connect 'mongodb://127.0.0.1:27017/test', {native_parser:true},(err,db) ->
+		if err
+			return done err
+		console.log "Connection to DB OK!"
 
-exports.storeRequest = (req, res, next) ->	
-	collection = db.collection "transaction"
-	request = {
-	      path:req.path,
-	      headers:[JSON.stringify(req.headers)],
-	      requestParams:[JSON.stringify(req.query)],
-	      body:JSON.stringify(req.body),
-	      method:req.method,
-	      timestamp:new Date().getTime()
-	    }	
-	collection.insert(
-	 {
-	  transactionId: req.param('transactionId'),
-	  status: req.param('status'),
-	  applicationId: req.param('applicationId'),
-	  request:request
-	  response:{},
-	  routes:[req.route],
-	  orchestrations:[{
-	      name:req.orchestrationName,
-	      request:request,
-	      response:{}
-	    }],
-	  properties:[JSON.stringify(req.properties)]
-	 }
-	)
-	console.log "store request"
-	next()
+		collection = db.createCollection  "transaction", (err, collection) ->
+			collection.insert transaction, (error,doc) ->
+				throw error if error
+				return doc
 
-exports.storeResponse = (req, res, next) ->
-	response = {
-	      status:res.statusCode,
-	      body:JSON.stringify(res.body),
-	      headers:[JSON.stringify(res.headers)],
-	      timestamp:new Date().getTime()
-	    }
-	collection = db.collection("transaction")
-	collection.update(
-	    {transactionId: req.body.transactionId},
-	    {$set: {response:response}}
-	)
-	next()
+exports.storeTransaction = (ctx,next) ->
+	
+	status = ctx.request.body.status
+	applicationId = ctx.request.body.applicationId			
+	request = exports.Request ctx.request.path, ctx.request.header, ctx.request.query, ctx.request.body, ctx.request.method
+	console.log "headers="+JSON.stringify(ctx.request.header)
+	request = JSON.stringify request
+	response = {}
+	routes = {}
+	orchestrations = {}
+	properties = JSON.stringify(ctx.request.body.properties)
+	
+	transaction = exports.Transaction status,applicationId,request,response,routes,orchestrations,properties
+	saveTransaction(transaction)
+
+
+exports.Request = (path,headers,requestParams,body,method) ->
+	this.path = path
+	this.headers = headers
+	this.requestParams = requestParams
+	this.body = body
+	this.method = method
+	this.timestamp = new Date().getTime()
+	return this
+exports.Request.prototype.toString = ->
+	return "path: "+this.path
+
+
+exports.store =  `function *storeMiddleware(next) {
+		console.log("messageStore store");
+		console.log("Context="+this.request);
+		exports.storeTransaction(this,next);
+		yield next
+		console.log ("Store response") ;
+	}`
 
